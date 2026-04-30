@@ -9,7 +9,7 @@ router = APIRouter()
 @router.get("/price")
 async def get_price(
     symbol: str = Query(..., example="BINANCE:BTCUSDT"),
-    timeframe: int = Query(1),
+    timeframe: str = Query("1"),
     range: int = Query(1),
 ):
     result = await fetch_current_price(symbol, timeframe, range)
@@ -20,7 +20,9 @@ async def get_price(
 @router.get("/candles")
 async def get_agent_candles(
     symbol: str = Query(..., example="BINANCE:BTCUSDT"),
-    timeframe: int = Query(1, description="Candle size in minutes"),
+    timeframe: str = Query(
+        "1", description="Candle size in minutes (e.g. 1, 5, 60, D, W)"
+    ),
     range: int = Query(50, description="Number of candles to fetch"),
 ):
     """
