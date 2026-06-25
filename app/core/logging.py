@@ -27,7 +27,7 @@ class JsonFormatter(logging.Formatter):
         }
 
         #Optional structured extras
-        extra_payload=getattr(record,"extra_paylaod",None)
+        extra_payload=getattr(record,"extra_payload",None)
         if extra_payload is not None:
             payload["extra"]=extra_payload
 
@@ -40,7 +40,9 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload,ensure_ascii=False)
     
     
-    def configure_logging()->None:
+    
+
+def configure_logging()->None:
         root=logging.getLogger()
         root.setLevel(LOG_LEVEL)
 
@@ -52,7 +54,6 @@ class JsonFormatter(logging.Formatter):
         handler= logging.StreamHandler()
         handler.setFormatter(JsonFormatter())
         root.addHandler(handler)
-
-
+        
 def get_logger(name:str)->logging.Logger:
     return logging.getLogger(name)
