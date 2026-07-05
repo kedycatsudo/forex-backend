@@ -25,7 +25,7 @@ async def validation_exception_handler(request: Request, exc: Exception) -> JSON
         "Request validation failed",
         extra={
             "event": "validation_error",
-            "extra_payload": {
+            "extra": {
                 "path": str(request.url.path),
                 "method": request.method,
                 "errors": compact_errors,
@@ -48,7 +48,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         "Unhandled exception",
         extra={
             "event": "unhandled_exception",
-            "extra_payload": {
+            "extra": {
                 "path": str(request.url.path),
                 "method": request.method,
             },

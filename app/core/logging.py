@@ -27,9 +27,9 @@ class JsonFormatter(logging.Formatter):
         }
 
         #Optional structured extras
-        extra_payload=getattr(record,"extra_payload",None)
-        if extra_payload is not None:
-            payload["extra"]=extra_payload
+        extra=getattr(record,"extra",None)
+        if extra is not None:
+            payload["extra"]=extra
 
         #Exception stack if present
         if record.exc_info:
