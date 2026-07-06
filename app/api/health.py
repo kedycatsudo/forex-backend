@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 import os
 
 import redis.asyncio as redis
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Request, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import limiter
 from app.core.logging import get_logger
 from app.db.session import get_db
 
@@ -19,7 +20,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 
 @router.get("/live")
-async def health_live() -> dict:
+@limiter.limit("60/minute")
+async def health_live(request: Request) -> dict:
     return {
         "status": "ok",
         "service": APP_NAME,
@@ -29,10 +31,10 @@ async def health_live() -> dict:
 
 
 @router.get("/ready")
-async def health_ready(db: AsyncSession = Depends(get_db)) -> JSONResponse:
+@limiter.limit("60/minute")
+async def health_ready(request: Request, db: AsyncSession = Depends(get_db)) -> JSONResponse:
     checks: dict[str, str] = {}
 
-    # Database readiness (critical)
     try:
         await db.execute(text("SELECT 1"))
         checks["database"] = "ok"
@@ -40,7 +42,6 @@ async def health_ready(db: AsyncSession = Depends(get_db)) -> JSONResponse:
         logger.exception("Database readiness check failed", extra={"event": "health_ready_db_failed"})
         checks["database"] = "fail"
 
-    # Redis readiness (optional)
     redis_client = None
     try:
         redis_client = redis.from_url(REDIS_URL, decode_responses=True)
@@ -56,8 +57,5 @@ async def health_ready(db: AsyncSession = Depends(get_db)) -> JSONResponse:
     is_ready = checks.get("database") == "ok"
     return JSONResponse(
         status_code=status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={
-            "status": "ready" if is_ready else "not_ready",
-            "checks": checks,
-        },
+        content={"status": "ready" if is_ready else "not_ready", "checks": checks},
     )
