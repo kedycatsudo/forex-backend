@@ -15,7 +15,7 @@ from app.core.logging import configure_logging, get_logger
 from app.core.rate_limit import rate_limit_exceeded_handler
 from app.core.request_id import RequestIdMiddleware
 from app.core.security_settings import get_security_settings
-
+from app.core.security_headers import SecurityHeadersMiddleware
 configure_logging()
 logger = get_logger(__name__)
 settings = get_security_settings()
@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health_router)
 app.include_router(auth_router)
