@@ -8,6 +8,7 @@ from app.core.logging import get_logger,request_id_ctx
 
 logger=get_logger(__name__)
 limiter = Limiter(key_func=get_remote_address)
+
 async def rate_limit_exceeded_handler(request: Request, exc:RateLimitExceeded):
     logger.warning(
         "Rate limit exceeded",

@@ -15,7 +15,7 @@ from app.core.logging import configure_logging, get_logger
 from app.core.rate_limit import rate_limit_exceeded_handler
 from app.core.request_id import RequestIdMiddleware
 from app.core.security_settings import get_security_settings
-from app.core.security_headers import SecurityHeadersMiddleware
+
 configure_logging()
 logger = get_logger(__name__)
 settings = get_security_settings()
@@ -28,6 +28,8 @@ async def app_lifespan(app: FastAPI):
         extra={
             "event": "security_settings_loaded",
             "extra": {
+                "env": settings.ENV,
+                "docs_enabled": settings.DOCS_ENABLED,
                 "internal_api_key_loaded": bool(settings.INTERNAL_API_KEY),
                 "cors_allowed_origins": settings.cors_allowed_origins_list,
                 "rate_limit_enabled": settings.RATE_LIMIT_ENABLED,
@@ -43,7 +45,12 @@ async def _rate_limit_handler_adapter(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
-app = FastAPI(lifespan=app_lifespan)
+app = FastAPI(
+    lifespan=app_lifespan,
+    docs_url="/docs" if settings.DOCS_ENABLED else None,
+    redoc_url="/redoc" if settings.DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
+)
 
 # make limiter available to slowapi internals
 limiter.enabled = settings.RATE_LIMIT_ENABLED
@@ -54,7 +61,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_handler_adapter)
 if settings.ENV != "local" and not settings.cors_allowed_origins_list:
     raise RuntimeError("CORS_ALLOWED_ORIGINS must be set in non-local environments")
 
-# Never allow wildcard origin with credentials
 if settings.CORS_ALLOW_CREDENTIALS and "*" in settings.cors_allowed_origins_list:
     raise RuntimeError("CORS_ALLOWED_ORIGINS cannot contain '*' when credentials are enabled")
 
@@ -69,7 +75,6 @@ app.add_middleware(
 )
 
 app.add_middleware(RequestIdMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health_router)
 app.include_router(auth_router)
