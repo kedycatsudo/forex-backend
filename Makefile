@@ -27,11 +27,11 @@ format:
 	$(DC) exec api ruff check . --fix
 
 migrate:
-	$(DC) exec api alembic upgrade head
+	docker exec -it app_api alembic upgrade head
 
 makemigration:
-	@test -n "$(msg)" || (echo 'Usage: make makemigration msg="add users table"' && exit 1)
-	$(DC) exec api alembic revision --autogenerate -m "$(msg)"
+	@test -n "$(msg)" || (echo 'Usage: make makemigration msg="..."' && exit 1)
+	docker exec -it app_api alembic revision --autogenerate -m "$(msg)"
 
 seed:
 	$(DC) exec api python -m app.db.seed
