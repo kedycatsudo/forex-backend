@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 WORKER_STARTED = "worker_started"
 WORKER_RECONNECT = "worker_reconnect"
 WORKER_ERROR = "worker_error"

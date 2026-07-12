@@ -1,7 +1,6 @@
 import itertools
 from typing import Any
 
-
 _MESSAGES = itertools.cycle(
     [
         # News-like message (with API trace)

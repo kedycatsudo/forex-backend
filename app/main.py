@@ -10,9 +10,8 @@ from app.api.health import router as health_router
 from app.api.internal.routes import router as internal_router
 from app.core.exceptions import register_exception_handlers
 from app.core.lifespan import register_lifecycle_events
-from app.core.rate_limit import limiter
 from app.core.logging import configure_logging, get_logger
-from app.core.rate_limit import rate_limit_exceeded_handler
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.core.request_id import RequestIdMiddleware
 from app.core.security_settings import get_security_settings
 

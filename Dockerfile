@@ -15,7 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install python deps first (better layer caching)
 COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+COPY requirements-dev.txt /app/requirements-dev.txt
+RUN pip install --upgrade pip && \
+    pip install -r /app/requirements.txt && \
+    pip install -r /app/requirements-dev.txt
 
 # Copy project
 COPY . /app

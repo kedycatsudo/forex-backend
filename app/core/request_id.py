@@ -1,5 +1,6 @@
 # app/core/request_id.py
 import uuid
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -7,6 +8,7 @@ from starlette.responses import Response
 from app.core.logging import request_id_ctx
 
 Request_ID_HEADER = "X-Request-ID"
+
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

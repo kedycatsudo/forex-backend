@@ -1,14 +1,14 @@
-from datetime import datetime, timezone
 import os
+from datetime import datetime, timezone
 
 import redis.asyncio as redis
-from fastapi import APIRouter, Request, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rate_limit import limiter
 from app.core.logging import get_logger
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -39,7 +39,10 @@ async def health_ready(request: Request, db: AsyncSession = Depends(get_db)) -> 
         await db.execute(text("SELECT 1"))
         checks["database"] = "ok"
     except Exception:
-        logger.exception("Database readiness check failed", extra={"event": "health_ready_db_failed"})
+        logger.exception(
+            "Database readiness check failed",
+            extra={"event": "health_ready_db_failed"},
+        )
         checks["database"] = "fail"
 
     redis_client = None
@@ -48,7 +51,10 @@ async def health_ready(request: Request, db: AsyncSession = Depends(get_db)) -> 
         await redis_client.ping()
         checks["redis"] = "ok"
     except Exception:
-        logger.warning("Redis readiness check failed", extra={"event": "health_ready_redis_failed"})
+        logger.warning(
+            "Redis readiness check failed",
+            extra={"event": "health_ready_redis_failed"},
+        )
         checks["redis"] = "fail"
     finally:
         if redis_client is not None:

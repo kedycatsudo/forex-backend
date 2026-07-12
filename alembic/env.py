@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
-
-from app.db.base import Base
-from app.db.session import DB_URL
 
 # Import models so Base.metadata is populated for autogenerate
 import app.models  # noqa: F401
+from alembic import context
+from app.db.base import Base
+from app.db.session import DB_URL
 
 config = context.config
 

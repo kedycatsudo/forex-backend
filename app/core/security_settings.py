@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,11 +29,11 @@ class SecuritySettings(BaseSettings):
 
     # CORS
     CORS_ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
-    CORS_ALLOW_CREDENTIALS: bool= True
-    CORS_ALLOWED_METHODS:str= "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-    CORS_ALLOWED_HEADERS:str="Authorization,Content-Type,X-Request-ID"
-    CORS_EXPOSE_HEADERS:str= "X-Request-ID"
-    CORS_MAX_AGE:int=600
+    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOWED_METHODS: str = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    CORS_ALLOWED_HEADERS: str = "Authorization,Content-Type,X-Request-ID"
+    CORS_EXPOSE_HEADERS: str = "X-Request-ID"
+    CORS_MAX_AGE: int = 600
 
     # Rate limits
     RATE_LIMIT_ENABLED: bool = True
@@ -43,7 +44,6 @@ class SecuritySettings(BaseSettings):
 
     # Reverse proxy trust list (comma-separated CIDRs/IPs)
     TRUSTED_PROXY_CIDRS: str = "127.0.0.1/32"
-
 
     @field_validator("DOCS_ENABLED")
     @classmethod
@@ -56,15 +56,19 @@ class SecuritySettings(BaseSettings):
     @property
     def cors_allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+
     @property
-    def cors_allowed_methods_list(self)-> list[str]:
+    def cors_allowed_methods_list(self) -> list[str]:
         return [m.strip().upper() for m in self.CORS_ALLOWED_METHODS.split(",") if m.strip()]
-    @property 
+
+    @property
     def cors_allowed_headers_list(self) -> list[str]:
         return [h.strip() for h in self.CORS_ALLOWED_HEADERS.split(",") if h.strip()]
+
     @property
     def cors_expose_headers_list(self) -> list[str]:
         return [h.strip() for h in self.CORS_EXPOSE_HEADERS.split(",") if h.strip()]
+
     @property
     def trusted_proxy_cidrs_list(self) -> list[str]:
         return [c.strip() for c in self.TRUSTED_PROXY_CIDRS.split(",") if c.strip()]
