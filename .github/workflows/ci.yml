@@ -45,10 +45,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Lint
-        run: make lint
+        run: ruff check .
 
       - name: Run migrations
-        run: make migrate
+        run: alembic upgrade head
 
       - name: Test
-        run: make test
+        run: pytest -q
