@@ -39,9 +39,7 @@ class SupervisorHealth:
         return {
             "state": self.state.value,
             "active_provider": self.active_provider,
-            "last_message_at": self.last_message_at.isoformat()
-            if self.last_message_at
-            else None,
+            "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
             "reconnect_count": self.reconnect_count,
             "failover_count": self.failover_count,
         }
@@ -107,6 +105,17 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
         self._state = SupervisorState.stopped
         logger.info("ingestion_supervisor_stopped")
 
+
+    def _transition(self, to_state: SupervisorState, reason: str, **meta: Any) -> None:
+        from_state = self._state
+        self._state = to_state
+        logger.info(
+            "state_transition from=%s to=%s reason=%s meta=%s",
+            from_state.value,
+            to_state.value,
+            reason,
+            meta or {},
+    )
     def health(self) -> dict[str, Any]:
         provider = self._active_provider
         return SupervisorHealth(
@@ -131,19 +140,48 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
 
         while not self._stop_event.is_set():
             try:
-                self._state = SupervisorState.connecting
+                self._transition(SupervisorState.connecting, "startup")
+                logger.info("connect_start provider=%s state=%s", provider.name, self._state.value)
+
                 await provider.connect()
+
+                was_reconnecting = self._reconnect_count > 0
                 self._state = SupervisorState.connected
-                logger.info("provider_connected provider=%s", provider.name)
+                logger.info("connect_ok provider=%s state=%s", provider.name, self._state.value)
+                if was_reconnecting:
+                    logger.info(
+                        "reconnect_success provider=%s reconnect_count=%s",
+                        provider.name,
+                        self._reconnect_count,
+                    )
 
                 async for raw_payload in provider.listen():
+                    logger.debug(
+                        "message_received provider=%s event_id=%s",
+                        provider.name,
+                        raw_payload.get("id"),
+                    )
+
                     event = self._wrap_event(raw_payload, provider)
                     ok = await self._dispatcher.dispatch(event)
 
                     if ok:
                         self._last_message_at = datetime.now(UTC)
+                        if self._state == SupervisorState.degraded:
+                            self._state = SupervisorState.connected
+                        logger.debug(
+                            "dispatch_ok provider=%s event_id=%s",
+                            provider.name,
+                            event.provider_event_id,
+                        )
                     else:
                         self._state = SupervisorState.degraded
+                        logger.warning(
+                            "dispatch_fail provider=%s event_id=%s state=%s",
+                            provider.name,
+                            event.provider_event_id,
+                            self._state.value,
+                        )
 
                     if self._stop_event.is_set():
                         break
@@ -151,12 +189,14 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception(
-                    "supervisor_provider_loop_error provider=%s",
-                    provider.name,
-                )
                 self._state = SupervisorState.reconnecting
                 self._reconnect_count += 1
+                logger.exception(
+                    "connect_fail provider=%s state=%s reconnect_count=%s",
+                    provider.name,
+                    self._state.value,
+                    self._reconnect_count,
+                )
 
                 switched = await self._try_failover()
                 if switched:
@@ -166,7 +206,14 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
                         raise RuntimeError("Failover switched to no provider.")
                     continue
 
-                await asyncio.sleep(1)
+                delay_seconds = 1
+                logger.info(
+                    "reconnect_scheduled provider=%s delay_seconds=%s reconnect_count=%s",
+                    provider.name,
+                    delay_seconds,
+                    self._reconnect_count,
+                )
+                await asyncio.sleep(delay_seconds)
 
     async def _try_failover(self) -> bool:
         """
@@ -186,12 +233,12 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
             except Exception:
                 logger.exception("active_provider_close_failed_during_failover")
 
-            next_provider=self._provider_b
+            next_provider = self._provider_b
             if next_provider is None:
                 return False
-            
-            self._active_provider =next_provider
-            logger.warning("provider_failover switched_to=%s", self._active_provider.name)
+
+            self._active_provider = next_provider
+            logger.warning("provider_failover switched_to=%s", next_provider.name)
             return True
 
         return False
