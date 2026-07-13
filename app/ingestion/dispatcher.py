@@ -25,6 +25,12 @@ class MessageDispatcher(ABC):
         raise NotImplementedError
 
 
+class IngestionMessageDispatcher(MessageDispatcher):
+    async def dispatch(self, event: RawIngestionEvent) -> bool:
+        # TODO: wire real routing/publish logic
+        return True
+
+
 class InMemoryQueueDispatcher(MessageDispatcher):
     """
     Temporary dispatcher implementation for skeleton phase:

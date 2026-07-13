@@ -128,8 +128,8 @@ class IngestionSettings(BaseSettings):
 
         if not api_key.strip():
             raise ValueError(
-        f"NEWS_PROVIDER_{key}_API_KEY is required when provider {key} is enabled."
-    )
+                f"NEWS_PROVIDER_{key}_API_KEY is required when provider {key} is enabled."
+            )
 
         if protocol == ProviderProtocol.ws and heartbeat <= 0:
             raise ValueError(
@@ -145,6 +145,4 @@ class IngestionSettings(BaseSettings):
             )
 
         if not (max_retries == -1 or max_retries >= 0):
-            raise ValueError(
-                f"NEWS_PROVIDER_{key}_MAX_RETRIES must be -1 (infinite) or >= 0."
-            )
+            raise ValueError(f"NEWS_PROVIDER_{key}_MAX_RETRIES must be -1 (infinite) or >= 0.")

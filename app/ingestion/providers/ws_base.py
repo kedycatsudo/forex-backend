@@ -9,22 +9,16 @@ from datetime import UTC, datetime
 from typing import Any, AsyncIterator
 
 from app.ingestion.providers.base import ProviderClient
+from app.ingestion.providers.errors import AuthError, NetworkError, RateLimitError
 
 logger = logging.getLogger(__name__)
 
 
-class HeartbeatDeadError(RuntimeError):
+class HeartbeatDeadError(NetworkError):
     """Raised when websocket heartbeat determines the connection is dead."""
 
 
 class WsProviderClient(ProviderClient):
-    """
-    Reusable WebSocket provider base:
-    - connection lifecycle
-    - heartbeat loop hooks
-    - reconnect with exponential backoff + jitter
-    """
-
     protocol: str = "ws"
 
     def __init__(
@@ -33,12 +27,12 @@ class WsProviderClient(ProviderClient):
         name: str,
         url: str,
         api_key: str,
-        heartbeat_interval_seconds: int = 15,   # N
-        pong_timeout_seconds: int = 5,          # M
-        missed_pongs_threshold: int = 3,        # K
+        heartbeat_interval_seconds: int = 15,
+        pong_timeout_seconds: int = 5,
+        missed_pongs_threshold: int = 3,
         reconnect_base_seconds: int = 1,
         reconnect_max_seconds: int = 60,
-        max_retries: int = -1,  # -1 => infinite
+        max_retries: int = -1,
     ) -> None:
         self.name = name
         self.url = url
@@ -57,19 +51,47 @@ class WsProviderClient(ProviderClient):
         self._attempt = 0
         self._connection_id: str | None = None
 
-        # heartbeat observability
         self._last_ping_at: datetime | None = None
         self._last_pong_at: datetime | None = None
         self._consecutive_missed_pongs = 0
         self._heartbeat_dead_events_total = 0
+        self._heartbeat_misses_total = 0
 
     async def connect(self) -> None:
+        logger.info("post_connect_transport_start provider=%s", self.name)
         await self._open_socket()
-        await self._authenticate()
-        await self._subscribe()
+        logger.info("post_connect_transport_ok provider=%s", self.name)
+
+        logger.info("post_connect_auth_start provider=%s", self.name)
+        try:
+            await self._authenticate()
+        except AuthError:
+            logger.exception("post_connect_auth_fail provider=%s", self.name)
+            raise
+        logger.info("post_connect_auth_ok provider=%s", self.name)
+
+        logger.info("post_connect_subscribe_start provider=%s", self.name)
+        try:
+            await self._subscribe()
+        except Exception as exc:
+            logger.exception(
+                "subscribe_fail provider=%s connection_id=%s error_type=%s",
+                self.name,
+                self._connection_id,
+                exc.__class__.__name__,
+            )
+            raise
+        logger.info("post_connect_subscribe_ok provider=%s", self.name)
+
+        if self._supports_initial_snapshot():
+            logger.info("post_connect_snapshot_start provider=%s", self.name)
+            await self._request_initial_snapshot()
+            logger.info("post_connect_snapshot_ok provider=%s", self.name)
+
         self._connected = True
         self._attempt = 0
         self._consecutive_missed_pongs = 0
+        logger.info("post_connect_ready provider=%s", self.name)
 
     async def listen(self) -> AsyncIterator[dict[str, Any]]:
         while not self._stop_requested:
@@ -79,15 +101,22 @@ class WsProviderClient(ProviderClient):
 
                 heartbeat_task = asyncio.create_task(self._heartbeat_loop())
                 try:
+                    logger.info("post_connect_stream_start provider=%s", self.name)
                     async for msg in self._read_messages():
-                        # If provider message stream includes pong frames/messages,
-                        # concrete implementations can mark pong by setting:
-                        # {"type": "pong"} or override behavior in their own stream parser.
                         if msg.get("type") == "pong":
                             self._last_pong_at = datetime.now(UTC)
                             self._consecutive_missed_pongs = 0
                             logger.debug("heartbeat_pong_ok provider=%s", self.name)
                             continue
+
+                        rate_limited, retry_after = self._extract_rate_limit(msg)
+                        if rate_limited:
+                            logger.warning(
+                                "rate_limit_detected provider=%s retry_after_seconds=%s",
+                                self.name,
+                                retry_after,
+                            )
+                            raise RateLimitError(retry_after_seconds=retry_after)
 
                         yield msg
                 finally:
@@ -147,8 +176,9 @@ class WsProviderClient(ProviderClient):
                 logger.debug("heartbeat_pong_ok provider=%s", self.name)
             except asyncio.TimeoutError:
                 self._consecutive_missed_pongs += 1
+                self._heartbeat_misses_total += 1
                 logger.warning(
-                    "heartbeat_pong_timeout provider=%s miss_count=%s",
+                    "heartbeat_missed provider=%s miss_count=%s",
                     self.name,
                     self._consecutive_missed_pongs,
                 )
@@ -166,7 +196,15 @@ class WsProviderClient(ProviderClient):
                         f"Missed {self.missed_pongs_threshold} consecutive pongs."
                     )
 
-    # ---- hooks for concrete providers ----
+    def _supports_initial_snapshot(self) -> bool:
+        return False
+
+    async def _request_initial_snapshot(self) -> None:
+        return None
+
+    def _extract_rate_limit(self, msg: dict[str, Any]) -> tuple[bool, int | None]:
+        return (False, None)
+
     @abstractmethod
     async def _open_socket(self) -> None:
         raise NotImplementedError

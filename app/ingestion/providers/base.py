@@ -10,7 +10,7 @@ class ProviderClient(ABC):
     Concrete providers (ws/http) must implement lifecycle + stream reading.
     """
 
-    name: str 
+    name: str
     protocol: str
 
     @abstractmethod

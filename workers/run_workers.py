@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 
 from app.core.logging import configure_logging, get_logger
@@ -18,9 +20,12 @@ async def main() -> None:
     ]
     try:
         await asyncio.gather(*tasks)
+    except asyncio.CancelledError:
+        raise
     finally:
         for t in tasks:
             t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         logger.info("Worker group stopped", extra={"event": "worker_group_stopped"})
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RawIngestionEvent(BaseModel):
@@ -26,3 +26,10 @@ class RawIngestionEvent(BaseModel):
         default_factory=dict,
         description="Transport context (protocol, channel, sequence, headers, cursor, etc)",
     )
+
+    @field_validator("received_at")
+    @classmethod
+    def ensure_received_at_utc(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

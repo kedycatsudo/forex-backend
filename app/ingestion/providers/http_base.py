@@ -72,9 +72,7 @@ class HttpPollingProviderClient(ProviderClient):
         raise NotImplementedError
 
     @abstractmethod
-    def _next_cursor(
-        self, events: list[dict[str, Any]], current_cursor: str | None
-    ) -> str | None:
+    def _next_cursor(self, events: list[dict[str, Any]], current_cursor: str | None) -> str | None:
         raise NotImplementedError
 
     @abstractmethod

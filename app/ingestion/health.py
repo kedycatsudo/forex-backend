@@ -18,9 +18,7 @@ class IngestionHealthSnapshot:
         return {
             "active_provider": self.active_provider,
             "state": self.state.value,
-            "last_message_at": (
-                self.last_message_at.isoformat() if self.last_message_at else None
-            ),
+            "last_message_at": (self.last_message_at.isoformat() if self.last_message_at else None),
             "reconnect_count": self.reconnect_count,
             "failover_count": self.failover_count,
         }
