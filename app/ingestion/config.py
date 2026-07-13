@@ -1,4 +1,5 @@
 from enum import Enum
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -126,7 +127,9 @@ class IngestionSettings(BaseSettings):
             raise ValueError(f"NEWS_PROVIDER_{key}_URL is required when provider {key} is enabled.")
 
         if not api_key.strip():
-            raise ValueError(f"NEWS_PROVIDER_{key}_API_KEY is required when provider {key} is enabled.")
+            raise ValueError(
+        f"NEWS_PROVIDER_{key}_API_KEY is required when provider {key} is enabled."
+    )
 
         if protocol == ProviderProtocol.ws and heartbeat <= 0:
             raise ValueError(
