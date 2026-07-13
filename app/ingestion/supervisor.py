@@ -14,7 +14,7 @@ from app.ingestion.models import RawIngestionEvent
 from app.ingestion.providers.base import ProviderClient
 from app.ingestion.startup_check import build_ingestion_settings
 from app.ingestion.supervisor_base import IngestionSupervisorLifecycle
-
+from app.ingestion.providers.ws_base import HeartbeatDeadError
 logger = logging.getLogger(__name__)
 
 
@@ -146,8 +146,9 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
                 await provider.connect()
 
                 was_reconnecting = self._reconnect_count > 0
-                self._state = SupervisorState.connected
+                self._transition(SupervisorState.connected, "connect_ok")
                 logger.info("connect_ok provider=%s state=%s", provider.name, self._state.value)
+
                 if was_reconnecting:
                     logger.info(
                         "reconnect_success provider=%s reconnect_count=%s",
@@ -168,14 +169,14 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
                     if ok:
                         self._last_message_at = datetime.now(UTC)
                         if self._state == SupervisorState.degraded:
-                            self._state = SupervisorState.connected
+                            self._transition(SupervisorState.connected, "dispatch_recovered")
                         logger.debug(
                             "dispatch_ok provider=%s event_id=%s",
                             provider.name,
                             event.provider_event_id,
                         )
                     else:
-                        self._state = SupervisorState.degraded
+                        self._transition(SupervisorState.degraded, "dispatch_fail")
                         logger.warning(
                             "dispatch_fail provider=%s event_id=%s state=%s",
                             provider.name,
@@ -188,9 +189,36 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
 
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                self._state = SupervisorState.reconnecting
+
+            except HeartbeatDeadError:
                 self._reconnect_count += 1
+                self._transition(SupervisorState.reconnecting, "heartbeat_dead")
+                logger.warning(
+                    "connect_fail provider=%s reason=heartbeat_dead reconnect_count=%s",
+                    provider.name,
+                    self._reconnect_count,
+                )
+
+                switched = await self._try_failover()
+                if switched:
+                    self._failover_count += 1
+                    provider = self._active_provider
+                    if provider is None:
+                        raise RuntimeError("Failover switched to no provider.")
+                    continue
+
+                delay_seconds = 1
+                logger.info(
+                    "reconnect_scheduled provider=%s delay_seconds=%s reconnect_count=%s",
+                    provider.name,
+                    delay_seconds,
+                    self._reconnect_count,
+                )
+                await asyncio.sleep(delay_seconds)
+
+            except Exception:
+                self._reconnect_count += 1
+                self._transition(SupervisorState.reconnecting, "provider_exception")
                 logger.exception(
                     "connect_fail provider=%s state=%s reconnect_count=%s",
                     provider.name,

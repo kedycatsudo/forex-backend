@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import random
 from abc import abstractmethod
+from datetime import UTC, datetime
 from typing import Any, AsyncIterator
 
 from app.ingestion.providers.base import ProviderClient
+
+logger = logging.getLogger(__name__)
+
+
+class HeartbeatDeadError(RuntimeError):
+    """Raised when websocket heartbeat determines the connection is dead."""
 
 
 class WsProviderClient(ProviderClient):
@@ -25,7 +33,9 @@ class WsProviderClient(ProviderClient):
         name: str,
         url: str,
         api_key: str,
-        heartbeat_interval_seconds: int = 30,
+        heartbeat_interval_seconds: int = 15,   # N
+        pong_timeout_seconds: int = 5,          # M
+        missed_pongs_threshold: int = 3,        # K
         reconnect_base_seconds: int = 1,
         reconnect_max_seconds: int = 60,
         max_retries: int = -1,  # -1 => infinite
@@ -33,7 +43,11 @@ class WsProviderClient(ProviderClient):
         self.name = name
         self.url = url
         self.api_key = api_key
+
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
+        self.pong_timeout_seconds = pong_timeout_seconds
+        self.missed_pongs_threshold = missed_pongs_threshold
+
         self.reconnect_base_seconds = reconnect_base_seconds
         self.reconnect_max_seconds = reconnect_max_seconds
         self.max_retries = max_retries
@@ -41,7 +55,13 @@ class WsProviderClient(ProviderClient):
         self._connected = False
         self._stop_requested = False
         self._attempt = 0
-        self._connection_id = None
+        self._connection_id: str | None = None
+
+        # heartbeat observability
+        self._last_ping_at: datetime | None = None
+        self._last_pong_at: datetime | None = None
+        self._consecutive_missed_pongs = 0
+        self._heartbeat_dead_events_total = 0
 
     async def connect(self) -> None:
         await self._open_socket()
@@ -49,6 +69,7 @@ class WsProviderClient(ProviderClient):
         await self._subscribe()
         self._connected = True
         self._attempt = 0
+        self._consecutive_missed_pongs = 0
 
     async def listen(self) -> AsyncIterator[dict[str, Any]]:
         while not self._stop_requested:
@@ -59,17 +80,36 @@ class WsProviderClient(ProviderClient):
                 heartbeat_task = asyncio.create_task(self._heartbeat_loop())
                 try:
                     async for msg in self._read_messages():
+                        # If provider message stream includes pong frames/messages,
+                        # concrete implementations can mark pong by setting:
+                        # {"type": "pong"} or override behavior in their own stream parser.
+                        if msg.get("type") == "pong":
+                            self._last_pong_at = datetime.now(UTC)
+                            self._consecutive_missed_pongs = 0
+                            logger.debug("heartbeat_pong_ok provider=%s", self.name)
+                            continue
+
                         yield msg
                 finally:
                     heartbeat_task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await heartbeat_task
 
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 self._connected = False
                 if not self._should_retry():
                     raise
-                await asyncio.sleep(self._next_backoff_seconds())
+
+                delay = self._next_backoff_seconds()
+                logger.info(
+                    "reconnect_scheduled provider=%s delay_seconds=%.3f attempt=%s",
+                    self.name,
+                    delay,
+                    self._attempt,
+                )
+                await asyncio.sleep(delay)
 
     async def close(self) -> None:
         self._stop_requested = True
@@ -93,8 +133,38 @@ class WsProviderClient(ProviderClient):
     async def _heartbeat_loop(self) -> None:
         while self._connected and not self._stop_requested:
             await asyncio.sleep(self.heartbeat_interval_seconds)
+            if not self._connected or self._stop_requested:
+                break
+
+            self._last_ping_at = datetime.now(UTC)
+            logger.debug("heartbeat_ping_sent provider=%s", self.name)
             await self._send_ping()
-            await self._await_pong()
+
+            try:
+                await asyncio.wait_for(self._await_pong(), timeout=self.pong_timeout_seconds)
+                self._last_pong_at = datetime.now(UTC)
+                self._consecutive_missed_pongs = 0
+                logger.debug("heartbeat_pong_ok provider=%s", self.name)
+            except asyncio.TimeoutError:
+                self._consecutive_missed_pongs += 1
+                logger.warning(
+                    "heartbeat_pong_timeout provider=%s miss_count=%s",
+                    self.name,
+                    self._consecutive_missed_pongs,
+                )
+
+                if self._consecutive_missed_pongs >= self.missed_pongs_threshold:
+                    self._heartbeat_dead_events_total += 1
+                    self._connected = False
+                    logger.error(
+                        "heartbeat_dead_socket_detected provider=%s miss_count=%s threshold=%s",
+                        self.name,
+                        self._consecutive_missed_pongs,
+                        self.missed_pongs_threshold,
+                    )
+                    raise HeartbeatDeadError(
+                        f"Missed {self.missed_pongs_threshold} consecutive pongs."
+                    )
 
     # ---- hooks for concrete providers ----
     @abstractmethod
@@ -112,7 +182,6 @@ class WsProviderClient(ProviderClient):
     @abstractmethod
     def _read_messages(self) -> AsyncIterator[dict[str, Any]]:
         raise NotImplementedError
-
 
     @abstractmethod
     async def _send_ping(self) -> None:
