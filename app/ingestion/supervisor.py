@@ -12,9 +12,10 @@ from app.ingestion.config import IngestionSettings
 from app.ingestion.dispatcher import MessageDispatcher
 from app.ingestion.models import RawIngestionEvent
 from app.ingestion.providers.base import ProviderClient
+from app.ingestion.providers.ws_base import HeartbeatDeadError
 from app.ingestion.startup_check import build_ingestion_settings
 from app.ingestion.supervisor_base import IngestionSupervisorLifecycle
-from app.ingestion.providers.ws_base import HeartbeatDeadError
+
 logger = logging.getLogger(__name__)
 
 

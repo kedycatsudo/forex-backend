@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 
 from app.ingestion.models import RawIngestionEvent
 
-
 logger = logging.getLogger(__name__)
 
 
