@@ -1,7 +1,7 @@
-from .base import NewsProviderClient
+from .base import ProviderClient
 
 
-class ProviderBClient(NewsProviderClient):
+class ProviderBClient(ProviderClient):
     name = "SecondaryCalendarProvider"
     protocol = "http"
 

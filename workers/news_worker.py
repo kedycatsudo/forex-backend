@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import signal
+from typing import cast
 
 from app.core.logging import get_logger
 from app.ingestion.dispatcher import IngestionMessageDispatcher
+from app.ingestion.providers.base import ProviderClient
 from app.ingestion.providers.rapidapi_tradingview import RapidApiTradingViewProvider
 from app.ingestion.supervisor import IngestionSupervisor
 from workers.logging_contract import (
@@ -18,7 +20,7 @@ WORKER_NAME = "news_worker"
 SOURCE = "ingestion_supervisor"
 
 logger = get_logger(__name__)
-provider_a= RapidApiTradingViewProvider
+provider_a = cast(ProviderClient, RapidApiTradingViewProvider())
 
 async def run_news_worker() -> None:
     """
