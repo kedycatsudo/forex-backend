@@ -262,14 +262,20 @@ class IngestionSupervisor(IngestionSupervisorLifecycle):
                     None,
                     None,
                 )
-
+                self._transition(SupervisorState.connected, "listen_started")
                 if was_reconnecting:
                     logger.info(
                         "reconnect_success provider=%s reconnect_count=%s",
                         provider.name,
                         self._reconnect_count,
                     )
-
+                logger.info("listen_loop_entered provider=%s", provider.name)
+                async for raw_payload in provider.listen():
+                    logger.info(
+                        "listen_item_received provider=%s id=%s",
+                        provider.name,
+                        raw_payload.get("id"),
+                    )
                 async for raw_payload in provider.listen():
                     self._messages_total += 1
                     self._last_msg_monotonic = monotonic()

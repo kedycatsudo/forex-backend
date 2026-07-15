@@ -4,7 +4,7 @@ import asyncio
 import signal
 from typing import cast
 
-from app.core.logging import get_logger
+from app.core.logging import configure_logging, get_logger
 from app.ingestion.dispatcher import IngestionMessageDispatcher
 from app.ingestion.providers.base import ProviderClient
 from app.ingestion.providers.rapidapi_tradingview import RapidApiTradingViewProvider
@@ -18,9 +18,10 @@ from workers.logging_contract import (
 
 WORKER_NAME = "news_worker"
 SOURCE = "ingestion_supervisor"
-
+configure_logging()
 logger = get_logger(__name__)
 provider_a = cast(ProviderClient, RapidApiTradingViewProvider())
+
 
 async def run_news_worker() -> None:
     """
@@ -30,11 +31,12 @@ async def run_news_worker() -> None:
     - graceful stop with timeout
     """
     dispatcher = IngestionMessageDispatcher()
-    supervisor = IngestionSupervisor(dispatcher=dispatcher,provider_a=provider_a)
+    supervisor = IngestionSupervisor(dispatcher=dispatcher, provider_a=provider_a)
 
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     print("news_worker entered run_news_worker", flush=True)
+
     def _request_stop() -> None:
         stop_event.set()
 
@@ -99,5 +101,8 @@ async def run_news_worker() -> None:
                     source=SOURCE,
                 ),
             )
+
+
 if __name__ == "__main__":
+    configure_logging()
     asyncio.run(run_news_worker())

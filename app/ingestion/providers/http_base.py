@@ -23,7 +23,7 @@ class HttpPollingProviderClient(ProviderClient):
         name: str,
         url: str,
         api_key: str,
-        poll_interval_seconds: int = 15,
+        poll_interval_seconds: int = 60,
         timeout_seconds: int = 20,
     ) -> None:
         self.name = name

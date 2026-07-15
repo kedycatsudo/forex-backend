@@ -23,11 +23,13 @@ class MessageDispatcher(ABC):
             False -> dispatch failed (non-fatal path)
         """
         raise NotImplementedError
-    
+
+
 class IngestionMessageDispatcher(MessageDispatcher):
     async def dispatch(self, event: RawIngestionEvent) -> bool:
         # TODO: wire real routing/publish logic
         return True
+
 
 class InMemoryQueueDispatcher(MessageDispatcher):
     """
