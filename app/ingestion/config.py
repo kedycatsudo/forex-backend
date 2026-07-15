@@ -63,6 +63,11 @@ class IngestionSettings(BaseSettings):
     news_ingestion_loop_interval_seconds: int = Field(default=15, gt=0)
     news_log_level: LogLevel = LogLevel.INFO
 
+    # N/M/K settings
+    ws_heartbeat_ping_interval_seconds: int = Field(default=15, ge=1)
+    ws_heartbeat_pong_timeout_seconds: int = Field(default=5, ge=1)
+    ws_heartbeat_missed_pongs_threshold: int = Field(default=3, ge=1)
+    
     @model_validator(mode="after")
     def validate_ingestion_contract(self):
         self._validate_provider(
@@ -128,8 +133,8 @@ class IngestionSettings(BaseSettings):
 
         if not api_key.strip():
             raise ValueError(
-                f"NEWS_PROVIDER_{key}_API_KEY is required when provider {key} is enabled."
-            )
+        f"NEWS_PROVIDER_{key}_API_KEY is required when provider {key} is enabled."
+    )
 
         if protocol == ProviderProtocol.ws and heartbeat <= 0:
             raise ValueError(
@@ -145,4 +150,6 @@ class IngestionSettings(BaseSettings):
             )
 
         if not (max_retries == -1 or max_retries >= 0):
-            raise ValueError(f"NEWS_PROVIDER_{key}_MAX_RETRIES must be -1 (infinite) or >= 0.")
+            raise ValueError(
+                f"NEWS_PROVIDER_{key}_MAX_RETRIES must be -1 (infinite) or >= 0."
+            )
