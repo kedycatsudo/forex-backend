@@ -15,12 +15,18 @@ class RapidApiTradingViewProvider(ProviderClient):
     protocol: str = "rest_polling"
 
     def __init__(self, poll_seconds: float = 30.0) -> None:
-        self.host = os.getenv("NEWS_PROVIDER_A_URL", "tradingview-api1.p.rapidapi.com")
-        self.key = os.getenv("NEWS_PROVIDER_A_API_KEY", "")
+        raw_url = os.getenv("NEWS_PROVIDER_A_URL", "tradingview-api1.p.rapidapi.com").strip()
+        self.key = os.getenv("NEWS_PROVIDER_A_API_KEY", "").strip()
         if not self.key:
             raise ValueError("NEWS_PROVIDER_A_API_KEY is required")
 
-        self.base_url = f"https://{self.host}"
+        if raw_url.startswith("http://") or raw_url.startswith("https://"):
+            self.base_url = raw_url.rstrip("/")
+            self.host = raw_url.split("://", 1)[1].split("/", 1)[0]
+        else:
+            self.host = raw_url.split("/", 1)[0]
+            self.base_url = f"https://{self.host}"
+
         self.poll_seconds = poll_seconds
         self._stop = False
         self.headers = {
@@ -28,6 +34,7 @@ class RapidApiTradingViewProvider(ProviderClient):
             "x-rapidapi-host": self.host,
             "Content-Type": "application/json",
         }
+
 
     async def connect(self) -> None:
         self._stop = False

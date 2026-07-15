@@ -34,7 +34,7 @@ async def run_news_worker() -> None:
 
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
-
+    print("news_worker entered run_news_worker", flush=True)
     def _request_stop() -> None:
         stop_event.set()
 
